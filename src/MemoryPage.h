@@ -22,19 +22,21 @@
 #include <iostream>
 #include <iterator>
 #include <algorithm>
+#include <math.h>
 
-template <typename _Key, typename _Data>
+#include "data_structures.h"
+
 struct MemoryPage {
 	bool isInit;
 	int id;
 	int level;
 	int nSlots;
 	int slotuse;
-	_Key * slotkey;
+	char * slotkey;
 	union udata
 	{
 	    int * childid;
-	    _Data * slotdata;
+	    char * slotdata;
 	} data;
 	int prevleaf;
 	int nextleaf;
@@ -48,6 +50,16 @@ struct MemoryHeader {
 	int tailLeaf;
 	int usedPages;
 	int size;
+	int nKeyTypes;
+	int nDataTypes;
+	int key_type[64];
+	size_t key_sizes[64];
+	int data_type[64];
+	size_t data_sizes[64];
+	size_t memPageSize;
+	int dataSize;
+	int keySize;
+	int nSlots;
 };
 
 struct mmap_params {
@@ -56,10 +68,8 @@ struct mmap_params {
     std::string path;
 };
 
-template <typename _Key, typename _Data>
 class MemoryPageManager;
 
-template <typename _Key, typename _Data>
 struct MemoryNodeImpl {
 
 #ifdef __unix__
@@ -69,14 +79,14 @@ struct MemoryNodeImpl {
 	boost::iostreams::mapped_file m_fileMap;
 	boost::iostreams::mapped_file_params m_fileParams;
 #endif
-	MemoryPage<_Key, _Data> * m_page;
-	MemoryPageManager<_Key, _Data> * m_mgr;
+	MemoryPage * m_page;
+	MemoryPageManager * m_mgr;
     int m_count;
 
 #ifdef __unix__
-	MemoryNodeImpl(MemoryPageManager<_Key, _Data> * mgr, mmap_params & params);
+	MemoryNodeImpl(MemoryPageManager * mgr, mmap_params & params);
 #else
-    MemoryNodeImpl(MemoryPageManager<_Key, _Data> * mgr, boost::iostreams::mapped_file_params & params);
+    MemoryNodeImpl(MemoryPageManager * mgr, boost::iostreams::mapped_file_params & params);
 #endif
 
 	~MemoryNodeImpl();
@@ -87,25 +97,36 @@ struct MemoryNodeImpl {
 	int Release() {
 		return --m_count;
 	}
+
+	DataType GetKey(int slot);
+
+	DataType GetData(int slot);
+
+	int GetChild(int slot);
+
+	void SetKey(int slot, DataType & data);
+
+	void SetData(int slot, DataType & data);
+
+	void SetChild(int slot, int c);
 };
 
-template <typename _Key, typename _Data>
 class MemoryNode {
 
 public:
-	MemoryNodeImpl<_Key, _Data> * m_memNodeImpl;
+	MemoryNodeImpl * m_memNodeImpl;
 
 public:
 	MemoryNode() : m_memNodeImpl(NULL) {}
 
 #ifdef __unix__
-    MemoryNode(MemoryPageManager<_Key, _Data> * mgr, mmap_params & params) {
-        m_memNodeImpl = new MemoryNodeImpl<_Key, _Data>(mgr, params);
+    MemoryNode(MemoryPageManager * mgr, mmap_params & params) {
+        m_memNodeImpl = new MemoryNodeImpl(mgr, params);
         m_memNodeImpl->AddRef();
     }
 #else
-    MemoryNode(MemoryPageManager<_Key, _Data> * mgr, boost::iostreams::mapped_file_params & params) {
-        m_memNodeImpl = new MemoryNodeImpl<_Key, _Data>(mgr, params);
+    MemoryNode(MemoryPageManager * mgr, boost::iostreams::mapped_file_params & params) {
+        m_memNodeImpl = new MemoryNodeImpl(mgr, params);
         m_memNodeImpl->AddRef();
     }
 #endif
@@ -121,15 +142,15 @@ public:
 		}
 	}
 
-	MemoryPage<_Key, _Data>& operator* () {
+	MemoryPage& operator* () {
 		return *m_memNodeImpl->m_page;
 	}
 
-	MemoryPage<_Key, _Data>& operator* () const {
+	MemoryPage& operator* () const {
 	        return *m_memNodeImpl->m_page;
 	    }
 
-	MemoryPage<_Key, _Data>* operator->() {
+	MemoryPage* operator->() {
 		return m_memNodeImpl->m_page;
 	}
 
@@ -155,9 +176,25 @@ public:
 		return m_memNodeImpl != NULL;
 	}
 
+	DataType GetKey(int slot) { return m_memNodeImpl->GetKey(slot); }
+
+	DataType GetData(int slot) { return m_memNodeImpl->GetData(slot); }
+
+	int GetChild(int slot) { return m_memNodeImpl->GetChild(slot); }
+
+    void SetKey(int slot, DataType & data) {
+        m_memNodeImpl->SetKey(slot, data);
+    }
+
+    void SetData(int slot, DataType & data) {
+        m_memNodeImpl->SetData(slot, data);
+    }
+
+    void SetChild(int slot, int c) {
+        m_memNodeImpl->SetChild(slot, c);
+    }
 };
 
-template <typename _Key, typename _Data>
 class MemoryPageManager {
 public:
 	MemoryPageManager() : m_header(NULL), m_headerFD(-1), activePage(-1) {
@@ -166,37 +203,53 @@ public:
 	~MemoryPageManager() {
 	}
 
-	bool Open(const char * file) {
+	bool Open(const std::string & name) {
 
-		if (file != NULL) {
+        m_fileName = name;
+        m_headerFile = m_fileName + "_header";
 
-			m_fileName = std::string(file);
-			m_headerFile = m_fileName + "_header";
+        if (!FileExists( m_headerFile ))
+        {
+            CreateHeader( );
 
-			if (!FileExists( m_headerFile ))
-			{
-				CreateHeader( );
-			}
+            Init( );
 
-			Init( );
+            return true;
+        }
 
-			return true;
-		}
-		
 		return false;
 	}
 
+	void Create(const std::string & name, const DataStructure & keyStruct, const DataStructure & dataStruct) {
+
+	    Clear();
+
+	    m_fileName = name;
+	    m_headerFile = m_fileName + "_header";
+
+	    if (CreateHeader( )) {
+
+	        InitHeader(keyStruct, dataStruct);
+
+	    }
+	}
+
 	bool Close() {
-		m_deletePages.clear();
+
+		Clear();
 
 		return true;
+	}
+
+	void Clear() {
+	    m_deletePages.clear();
+	    m_memoryPageCache.clear();
+	    m_header = NULL;
 	}
 
 	bool CreateHeader( ) {
 
 		bool good = ResizeFile(m_headerFile, sizeof(MemoryHeader));
-
-		good = good && InitHeader( );
 
 		return good;
 
@@ -230,7 +283,7 @@ public:
 		return res;
 	}
 
-	bool InitHeader( ) {
+	bool InitHeader( const DataStructure & keyStruct, const DataStructure & dataStruct, int limit = 65536 ) {
 
 		assert(FileExists( m_headerFile ));
 
@@ -247,6 +300,29 @@ public:
 			m_header->headLeaf = -1;
 			m_header->tailLeaf = -1;
 			m_header->size = 0;
+
+			m_header->nKeyTypes = keyStruct.NTypes();
+			m_header->nDataTypes = dataStruct.NTypes();
+
+			m_header->dataSize = 0;
+			m_header->keySize = 0;
+
+			for (int i=0; i<m_header->nKeyTypes; i++) {
+			    m_header->key_type[i] = (int) keyStruct.GetType(i);
+			    m_header->key_sizes[i] = keyStruct.GetTypeSize(i);
+			    m_header->keySize += keyStruct.GetTypeSize(i);
+			}
+
+			for (int i=0; i<m_header->nDataTypes; i++) {
+                m_header->data_type[i] = (int) dataStruct.GetType(i);
+                m_header->data_sizes[i] = dataStruct.GetTypeSize(i);
+                m_header->dataSize += dataStruct.GetTypeSize(i);
+            }
+
+
+
+			m_header->memPageSize = limit;
+			m_header->nSlots = (limit - sizeof(MemoryPage)) / ( m_header->keySize + std::max(m_header->dataSize, (int)sizeof(int)));
 
 			CloseHeaderMap( );
 
@@ -279,6 +355,11 @@ public:
 		
 		bool res = ReadHeader( );
 
+		if (res) {
+		    m_keyType = DataStructure(m_header->nKeyTypes, &m_header->key_type[0], &m_header->key_sizes[0]);
+		    m_dataType = DataStructure(m_header->nDataTypes, &m_header->data_type[0], &m_header->data_sizes[0]);
+		}
+
 		res = res && InitUsedPages();
 
 		return res;
@@ -287,7 +368,7 @@ public:
 	bool InitUsedPages() {
 
 		for (int i = 0; i < m_header->nPages; i++) {
-			MemoryNode<_Key, _Data> page = GetMemoryPage(i);
+			MemoryNode page = GetMemoryPage(i);
 			if (!page->isInit) {
 				m_deletePages.insert(i);
 			}
@@ -295,9 +376,9 @@ public:
 		return true;
 	}
 
-	MemoryNode<_Key,_Data> InsertPage( ) {
+	MemoryNode InsertPage( ) {
 
-		MemoryNode<_Key, _Data> page;
+		MemoryNode page;
 
 		int nPage = 0;
 
@@ -335,14 +416,14 @@ public:
 
 	}
 
-	MemoryPage<_Key, _Data> * GetPage(int n) {
+	MemoryNode GetPage(int n) {
 		return GetMemoryPage(n);
 	}
 
 	bool DeletePage(int n) {
 
 		if (n < m_header->nPages && m_deletePages.find(n) == m_deletePages.end()) {
-			MemoryNode<_Key, _Data> page = GetMemoryPage(n);
+			MemoryNode page = GetMemoryPage(n);
 			page->isInit = false;
 			m_deletePages.insert(n);
 		}
@@ -404,9 +485,9 @@ public:
 
     }
 
-	MemoryNode<_Key, _Data> GetMemoryPage(int n) {
+	MemoryNode GetMemoryPage(int n) {
 
-		MemoryNode<_Key, _Data> nd;
+		MemoryNode nd;
 
 		if (n >= 0 && n < m_header->nPages && m_deletePages.find(n) == m_deletePages.end()) {
 
@@ -429,7 +510,7 @@ public:
 				fileParams.offset = n*PAGE_SIZE;
 #endif
 
-				nd = MemoryNode<_Key, _Data>(this, fileParams);
+				nd = MemoryNode(this, fileParams);
 
 				m_memoryPageCache[n] = nd;
 
@@ -489,12 +570,27 @@ public:
 		m_memoryPageCache.erase(m_memoryPageCache.find(id));
 	}
 
+	int GetNSlots() const {
+	    return m_header->nSlots;
+	}
+
+	size_t KeySize() { return m_header->keySize; }
+
+	size_t DataSize() { return m_header->dataSize; }
+
+	DataStructure * KeyType() { return &m_keyType; }
+
+	DataStructure * DataType() { return &m_dataType; }
+
 private:
 
 	std::string m_fileName;
 	std::string m_headerFile;
 	
 	MemoryHeader * m_header;
+
+	DataStructure m_keyType;
+	DataStructure m_dataType;
 
 #ifdef __unix__
 	const int PAGE_SIZE = 0x1000;
@@ -508,53 +604,6 @@ private:
 
 	int activePage;
 
-	std::map<int, MemoryNode<_Key, _Data> > m_memoryPageCache;
+	std::map<int, MemoryNode > m_memoryPageCache;
 
 };
-
-#ifdef __unix__
-template <typename _Key, typename _Data>
-MemoryNodeImpl<_Key,_Data>::MemoryNodeImpl(MemoryPageManager<_Key, _Data> * mgr, mmap_params & params) : m_mgr(mgr), m_count(0) {
-
-    m_fd = open(params.path.c_str(), O_RDWR|O_CREAT, (mode_t)0700);
-
-    m_fileParams = params;
-
-    m_page = (MemoryPage<_Key, _Data> *) mmap(NULL, params.size, PROT_WRITE | PROT_READ, MAP_SHARED|MAP_POPULATE, m_fd, params.offset);
-
-}
-#else
-template <typename _Key, typename _Data>
-MemoryNodeImpl<_Key,_Data>::MemoryNodeImpl(MemoryPageManager<_Key, _Data> * mgr, boost::iostreams::mapped_file_params & params) : m_mgr(mgr), m_count(0) {
-
-    if (m_fileMap.is_open()) {
-        m_fileMap.close();
-    }
-
-    m_fileMap.open(params);
-    m_fileParams = params;
-
-    m_page = (MemoryPage<_Key, _Data> *) m_fileMap.data();
-
-}
-#endif
-
-#ifdef __unix__
-template <typename _Key, typename _Data>
-MemoryNodeImpl<_Key, _Data>::~MemoryNodeImpl() {
-
-    m_mgr->DeleteFromCache(m_page->id);
-    munmap((void *) m_page, m_fileParams.size);
-    close(m_fd);
-
-}
-#else
-template <typename _Key, typename _Data>
-MemoryNodeImpl<_Key, _Data>::~MemoryNodeImpl() {
-
-    m_mgr->DeleteFromCache(m_page->id);
-    m_fileMap.close();
-
-}
-#endif
-

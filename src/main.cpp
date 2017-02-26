@@ -119,6 +119,8 @@ int main() {
 #include <algorithm>
 #include "MemoryPage.h"
 #include "persistentbtree.h"
+#include "server.h"
+#include "data_structures.h"
 
 // void *append(int fd, char const *data, size_t nbytes, void *map, size_t &len)
 // {
@@ -131,11 +133,11 @@ int main() {
 
 void basic_test() {
 
-    MemoryPageManager<int,int> pageMgr;
+    MemoryPageManager pageMgr;
 
     pageMgr.Open("test");
 
-    MemoryNode<int, int> page = pageMgr.InsertPage();
+    MemoryNode page = pageMgr.InsertPage();
 
     page->level = 5;
 
@@ -146,14 +148,32 @@ void basic_test() {
     page = pageMgr.InsertPage();
 }
 
+struct X {
+    static void* operator new(std::size_t sz)
+    {
+        std::cout << "custom new for size " << sz << '\n';
+        return ::operator new(sz);
+    }
+    static void* operator new[](std::size_t sz)
+    {
+        std::cout << "custom new for size " << sz << '\n';
+        return ::operator new(sz);
+    }
+    int x;
+    int y;
+};
+
 int main() {
 
-    PersistentBTree<int,int> tree;
-
-    //tree.insert(5, 4);
-
-    int p = tree.find(5).data();
-
-    std::cout<<p<<std::endl;
-
+//    PersistentBTree<int,int> tree;
+//
+//    //tree.insert(5, 4);
+//
+//    int p = tree.find(5).data();
+//
+//    std::cout<<p<<std::endl;
+//
+//    Server server;
+//
+//    server.bind(8808);
 }

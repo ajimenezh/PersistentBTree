@@ -2,6 +2,8 @@
 #ifndef SRC_DATABASE_H_
 #define SRC_DATABASE_H_
 
+#include "string_utils.h"
+#include "persistentbtree.h"
 
 class Database {
 public:
@@ -17,6 +19,8 @@ private:
 public:
     Database(Database const&) = delete;
     void operator=(Database const&) = delete;
+
+    std::string query(std::string & q);
 
 };
 
