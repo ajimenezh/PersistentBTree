@@ -24,7 +24,7 @@ enum t_dataTypes {
 // String only used in variant which stores the data aligned with the object
 class VariantString {
 public:
-    VariantString(std::string & s) {
+    VariantString(const std::string & s) {
         n = s.length() + 1;
         buf = (char*)(((VariantString*)this)+1);
         for (int i=0; i<(int)n; i++) buf[i] = s[i];
@@ -195,16 +195,16 @@ public:
         if (type == "SHORT") {
             return t_short_type;
         }
-        if (type == "INT") {
+        else if (type == "INT") {
             return t_int_type;
         }
-        if (type == "INT64") {
+        else if (type == "INT64") {
              return t_longlong_type;
         }
-        if (type == "DOUBLE") {
+        else if (type == "DOUBLE") {
             return t_double_type;
         }
-        if (type == "BOOL") {
+        else if (type == "BOOL") {
             return t_bool_type;
         }
         else {
@@ -221,26 +221,48 @@ public:
         if (type == "SHORT") {
             return sizeof(short);
         }
-        if (type == "INT") {
+        else if (type == "INT") {
             return sizeof(int);
         }
-        if (type == "INT64") {
+        else if (type == "INT64") {
             return sizeof(long long);
         }
-        if (type == "DOUBLE") {
+        else if (type == "DOUBLE") {
             return sizeof(double);
         }
-        if (type == "BOOL") {
+        else if (type == "BOOL") {
             return sizeof(bool);
         }
         else {
             if (type.substr(0, 6) == "STRING") {
                 int siz = atoi(type.substr(6, type.length() - 6).c_str());
-                return siz*sizeof(char) + sizeof(VariantString);
+                return siz*sizeof(char) + sizeof(VariantString) + 8;
             }
         }
 
         return 0;
+    }
+
+    void SetData(const std::string & data) {
+
+        if (m_type == t_int_type) {
+            *(int *) m_data = atoi(data.c_str());
+        }
+        else if (m_type == t_short_type) {
+            *(short *) m_data = atoi(data.c_str());
+        }
+        else if (m_type == t_longlong_type) {
+            *(long long *) m_data = atoll(data.c_str());
+        }
+        else if (m_type == t_double_type) {
+            *(double *) m_data = atof(data.c_str());
+        }
+        else if (m_type == t_bool_type) {
+            *(bool *) m_data = atoi(data.c_str());
+        }
+        else {
+            *(VariantString *) m_data = VariantString(data);
+        }
     }
 
 private:
@@ -325,11 +347,26 @@ public:
 
     size_t GetTypeSize(int i) const { return sizes[i]; }
 
+    size_t GetSize() {
+        size_t siz = 0;
+        for (int i = 0; i<n; i++) {
+            siz += sizes[i];
+        }
+        return siz;
+    }
+
+    void SetData(int idx, char * ptr, std::string & val) {
+        CVariant var(ptr, types[idx], sizes[idx]);
+        var.SetData(val);
+    }
+
 private:
     int n;
     t_dataTypes * types;
     size_t * sizes;
 };
+
+class DataStructure;
 
 class DataType {
 public:
@@ -346,7 +383,7 @@ public:
     bool operator<(const DataType & other) {
 
         char * cur = m_data;
-        char * curOther = other.Data();
+        const char * curOther = other.Data();
 
         for (int i=0; i<m_dataStruct->NTypes(); i++) {
 
@@ -371,6 +408,18 @@ public:
     }
 
     char * Data() { return m_data; }
+
+    const char * Data() const { return m_data; }
+
+    void SetData(char * buf) { m_data = buf; }
+
+    int GetSize() { return m_dataStruct->GetSize(); }
+
+    void SetData(int idx, std::string val) {
+        size_t cur = 0;
+        for (int i=0; i<idx; i++) cur += m_dataStruct->GetTypeSize(i);
+        m_dataStruct->SetData(idx, m_data+cur, val);
+    }
 
 private:
     DataStructure * m_dataStruct;

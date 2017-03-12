@@ -263,7 +263,7 @@ public:
 			return &temp_value;
 		}
 
-		inline const key_type key()
+		inline key_type key()
 		{
 			return currnode.GetKey(currslot);
 		}
@@ -386,6 +386,20 @@ public:
         m_tailleafId = m_memMgr.GetTailLeafId();
 	}
 
+	bool is_open() {
+	    return m_memMgr.IsOpen();
+	}
+
+public:
+
+	DataStructure * GetKeyStructure() {
+	    return m_memMgr.KeyType();
+	}
+
+	DataStructure * GetDataStructure() {
+        return m_memMgr.DataType();
+    }
+
 public:
 
 	class value_compare
@@ -411,7 +425,7 @@ public:
 
 private:
 
-	inline bool key_less(const key_type &a, const key_type b) const
+	inline bool key_less(key_type a, key_type b) const
 	{
 		return a < b;
 	}
@@ -1435,7 +1449,7 @@ private:
 	* Once the referenced key/data pair is found, it is removed from the leaf
 	* and the same underflow cases are handled as in erase_one_descend.
 	*/
-	result_t erase_iter_descend(const iterator& iter,
+	result_t erase_iter_descend(iterator& iter,
 		node curr,
 		node left, node right,
 		inner_node leftparent, inner_node rightparent,

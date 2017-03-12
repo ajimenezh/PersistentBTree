@@ -83,6 +83,29 @@ inline void MemoryNodeImpl::SetChild(int slot, int c) {
     *(int*)ptr = c;
 }
 
+DataType MemoryNode::GetKey(int slot) {
+    return m_memNodeImpl->GetKey(slot);
+}
+
+DataType MemoryNode::GetData(int slot) {
+    return m_memNodeImpl->GetData(slot);
+}
+
+int MemoryNode::GetChild(int slot) {
+    return m_memNodeImpl->GetChild(slot);
+}
+
+void MemoryNode::SetKey(int slot, DataType & data) {
+    m_memNodeImpl->SetKey(slot, data);
+}
+
+void MemoryNode::SetData(int slot, DataType & data) {
+    m_memNodeImpl->SetData(slot, data);
+}
+
+void MemoryNode::SetChild(int slot, int c) {
+    m_memNodeImpl->SetChild(slot, c);
+}
 
 
 

@@ -13,15 +13,12 @@
 #include <ctype.h>
 #include <vector>
 
-std::string to_upper(std::string s) {
-    for (int i=0; i<(int)s.length(); i++) s[i] = toupper(s[i]);
-    return s;
-}
+std::string to_upper(std::string s);
 
 class StringParser {
 
 public:
-    StringParser(std::string & s) : m_str(s), m_idx(0) {}
+    StringParser(std::string s) : m_str(s), m_idx(0) {}
 
     bool hasNext() {
         while (m_idx < (int)m_str.length() && m_str[m_idx] == ' ') m_idx++;
@@ -33,11 +30,17 @@ public:
         if (hasNext()) {
 
             int nxtIdx = m_idx;
-            while (nxtIdx < (int)m_str.length() && m_str[nxtIdx] != ' ') nxtIdx++;
+            char searchChar = ' ';
+            if (m_str[nxtIdx] == '\'') {
+                searchChar = '\'';
+                nxtIdx++;
+                m_idx++;
+            }
+            while (nxtIdx < (int)m_str.length() && m_str[nxtIdx] != searchChar) nxtIdx++;
 
-            std::string s = m_str.substr(m_idx, nxtIdx - m_idx+1);
+            std::string s = m_str.substr(m_idx, nxtIdx - m_idx);
 
-            m_idx = nxtIdx;
+            m_idx = nxtIdx + 1;
 
             return s;
         }

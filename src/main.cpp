@@ -121,6 +121,7 @@ int main() {
 #include "persistentbtree.h"
 #include "server.h"
 #include "data_structures.h"
+#include "database.h"
 
 // void *append(int fd, char const *data, size_t nbytes, void *map, size_t &len)
 // {
@@ -164,6 +165,8 @@ struct X {
 };
 
 int main() {
+
+    Database::GET_DATABASE().query("GET TEST_TABLE (5)");
 
 //    PersistentBTree<int,int> tree;
 //

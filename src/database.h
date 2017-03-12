@@ -20,7 +20,7 @@ public:
     Database(Database const&) = delete;
     void operator=(Database const&) = delete;
 
-    std::string query(std::string & q);
+    std::string query(std::string q);
 
 };
 

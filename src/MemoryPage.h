@@ -176,23 +176,17 @@ public:
 		return m_memNodeImpl != NULL;
 	}
 
-	DataType GetKey(int slot) { return m_memNodeImpl->GetKey(slot); }
+	DataType GetKey(int slot);
 
-	DataType GetData(int slot) { return m_memNodeImpl->GetData(slot); }
+	DataType GetData(int slot);
 
-	int GetChild(int slot) { return m_memNodeImpl->GetChild(slot); }
+	int GetChild(int slot);
 
-    void SetKey(int slot, DataType & data) {
-        m_memNodeImpl->SetKey(slot, data);
-    }
+    void SetKey(int slot, DataType & data);
 
-    void SetData(int slot, DataType & data) {
-        m_memNodeImpl->SetData(slot, data);
-    }
+    void SetData(int slot, DataType & data);
 
-    void SetChild(int slot, int c) {
-        m_memNodeImpl->SetChild(slot, c);
-    }
+    void SetChild(int slot, int c);
 };
 
 class MemoryPageManager {
@@ -208,16 +202,22 @@ public:
         m_fileName = name;
         m_headerFile = m_fileName + "_header";
 
-        if (!FileExists( m_headerFile ))
+        bool res = FileExists( m_headerFile );
+
+        res = res && Init();
+
+        if (!res)
         {
-            CreateHeader( );
-
-            Init( );
-
-            return true;
+            m_fileName = "";
+            m_headerFile = "";
+            m_header = NULL;
         }
 
-		return false;
+		return res;
+	}
+
+	bool IsOpen() {
+	    return m_header != NULL;
 	}
 
 	void Create(const std::string & name, const DataStructure & keyStruct, const DataStructure & dataStruct) {
